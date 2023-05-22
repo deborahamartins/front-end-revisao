@@ -2,8 +2,13 @@ import React from "react";
 import Pagina from "../../components/Pagina";
 import { Button, Card, Col, Row, Table } from "react-bootstrap";
 import apiDeputados from "../../services/apiDeputados";
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend } from 'recharts';
+import { format } from 'date-fns';
 
-const detalhesDeputado = ({ deputado, despesas, profissoes }) => {
+
+
+
+const detalhesDeputado = ({ deputado, despesas, profissoes, groupedDespesas, sortedData }) => {
   return (
     <Pagina titulo="Detalhes">
       <Row className="mb-3">
@@ -41,13 +46,18 @@ const detalhesDeputado = ({ deputado, despesas, profissoes }) => {
             </tbody>
           </Table>
         </Col>
-        <Col md={2}>
-          <h3>Profissões</h3>
-          <ul>
-            {profissoes.map((item) => (
-              <li>{item.titulo}</li>
-            ))}
-          </ul>
+        
+      </Row>
+      <Row>
+      <Col>
+        <LineChart width={800} height={400} data={sortedData}>
+        <CartesianGrid strokeDasharray="3 3" />
+        <XAxis dataKey="mes" />
+        <YAxis />
+        <Tooltip />
+        <Legend />
+        <Line type="monotone" dataKey="valor" stroke="#8884d8" activeDot={{ r: 8 }} />
+      </LineChart>
         </Col>
       </Row>
     </Pagina>
@@ -62,7 +72,7 @@ export async function getServerSideProps(context) {
   const resultado = await apiDeputados.get("/deputados/" + id);
   const deputado = resultado.data.dados;
 
-  const resDespesas = await apiDeputados.get("/deputados/" + id + "/despesas");
+  const resDespesas = await apiDeputados.get("/deputados/" + id + "/despesas?ordem=DESC&ordenarPor=mes&itens=100");
   const despesas = resDespesas.data.dados;
 
   const resProfissoes = await apiDeputados.get(
@@ -70,7 +80,28 @@ export async function getServerSideProps(context) {
   );
   const profissoes = resProfissoes.data.dados;
 
+  const groupedDespesas = despesas.reduce((acc, despesa) => {
+    const mes = format(new Date(despesa.dataDocumento), 'MMMM yyyy');
+    if (acc[mes]) {
+      acc[mes] += despesa.valorDocumento;
+    } else {
+      acc[mes] = despesa.valorDocumento;
+    }
+    return acc;
+  }, {});
+  const sortedData = Object.entries(groupedDespesas)
+  .map(([mes, valor]) => ({
+    mes,
+    valor,
+  }))
+  .sort((a, b) => {
+    const dateA = new Date(a.mes);
+    const dateB = new Date(b.mes);
+    return dateA - dateB;
+  });
+
+
   return {
-    props: { deputado, despesas, profissoes },
+    props: { deputado, despesas, profissoes, groupedDespesas, sortedData },
   };
 }
